@@ -42,7 +42,7 @@ class ResumeParser:
             'summary': ['highlights', 'overview', 'professional summary']
         }
 
-        # Load skills from CSV
+        # Load skills from CSV (fallback to default if missing)
         self.common_skills = self._load_skills_from_csv("data/skills.csv")
 
     def _load_skills_from_csv(self, file_path: str) -> List[str]:
@@ -76,7 +76,20 @@ class ResumeParser:
             else:
                 raise ValueError("Unsupported file format")
 
-            if not text:
+            if not text or len(text.strip()) < 100:  # Minimum length check
+                print("Error: Resume content not found. Please upload a valid resume.")
+                return None
+
+            # Must have at least one section or contact info
+            section_found = any(sec in text.lower() for sec in [
+                "experience", "education", "skills", "projects", "summary"
+            ])
+            contact_found = bool(re.search(
+                r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text
+            ))
+
+            if not section_found and not contact_found:
+                print("Error: Resume content not found. Please upload a valid resume.")
                 return None
 
             return self._parse_resume_text(text)
@@ -86,7 +99,7 @@ class ResumeParser:
             return None
 
     def _extract_pdf_text(self, file_path: str) -> str:
-        """Extract text from PDF file, with OCR fallback for scanned docs"""
+        """Extract text from PDF file, with OCR fallback"""
         text = ""
         try:
             with open(file_path, 'rb') as file:
@@ -95,7 +108,6 @@ class ResumeParser:
                     extracted = page.extract_text()
                     if extracted:
                         text += extracted
-            # If no text found, try OCR
             if not text.strip():
                 images = convert_from_path(file_path)
                 for img in images:
@@ -127,7 +139,7 @@ class ResumeParser:
             'education_level': self._extract_education_level(text)
         }
 
-        # Parse sections
+        # Split into sections
         lines = text.split('\n')
         current_section = 'general'
         section_content = []
@@ -137,7 +149,6 @@ class ResumeParser:
             if not line:
                 continue
 
-            # Check if line is a section header
             section_key = self._identify_section(line)
             if section_key:
                 if section_content:
@@ -156,13 +167,11 @@ class ResumeParser:
         """Identify if a line is a section header (supports synonyms)"""
         line_lower = line.lower().strip()
 
-        # Match direct keywords
         for section, keywords in self.sections.items():
             for keyword in keywords:
                 if keyword in line_lower and len(line.split()) <= 5:
                     return section
 
-        # Match synonyms
         for section, synonyms in self.section_synonyms.items():
             for syn in synonyms:
                 if syn in line_lower and len(line.split()) <= 6:
@@ -171,7 +180,7 @@ class ResumeParser:
         return None
 
     def _extract_contact_info(self, text: str) -> Dict:
-        """Extract contact information"""
+        """Extract contact info"""
         contact_info = {}
 
         email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
@@ -192,7 +201,7 @@ class ResumeParser:
         return contact_info
 
     def _extract_skills(self, text: str) -> List[str]:
-        """Extract skills from resume text using expanded skills list"""
+        """Extract skills using loaded list"""
         found_skills = []
         text_lower = text.lower()
         for skill in self.common_skills:
@@ -201,7 +210,7 @@ class ResumeParser:
         return sorted(set(found_skills), key=str.lower)
 
     def _calculate_experience_years(self, text: str) -> int:
-        """Calculate years of experience from resume"""
+        """Calculate total experience years"""
         exp_patterns = [
             r'(\d+)\+?\s*years?\s*(of\s*)?experience',
             r'experience\s*:?\s*(\d+)\+?\s*years?',
@@ -220,7 +229,7 @@ class ResumeParser:
         return years
 
     def _extract_keywords(self, text: str) -> List[str]:
-        """Extract important keywords from resume"""
+        """Extract top keywords"""
         stop_words = {
             'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
             'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be',
@@ -233,7 +242,7 @@ class ResumeParser:
         return [word for word, count in word_freq.most_common(50)]
 
     def _extract_education_level(self, text: str) -> str:
-        """Extract highest education level"""
+        """Extract highest education"""
         education_levels = {
             'phd': ['phd', 'ph.d', 'doctorate', 'doctoral'],
             'masters': ['masters', "master's", 'm.s', 'mba', 'ma', 'ms'],
