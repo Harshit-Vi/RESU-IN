@@ -29,34 +29,28 @@ class RESUIN:
         print("Analyzes resumes against company-specific ATS systems")
         print("Provides detailed scoring and improvement recommendations")
         print("Simulates ATS behavior with 80%+ accuracy\n")
-        
+
     def get_resume_file(self) -> str:
         """Get resume file path from user"""
         while True:
             file_path = input("📄 Enter resume file path (PDF/DOCX): ").strip()
-            
             if not file_path:
                 print("❌ Please enter a valid file path")
                 continue
-                
             if not os.path.exists(file_path):
                 print("❌ File not found. Please check the path and try again")
                 continue
-                
             if not file_path.lower().endswith(('.pdf', '.docx', '.doc')):
                 print("❌ Please provide a PDF or DOCX file")
                 continue
-                
             return file_path
-            
+
     def get_company_selection(self) -> str:
         """Get target company from user"""
         companies = self.company_ats.get_available_companies()
-        
         print("\n🏢 Select target company:")
         for i, company in enumerate(companies, 1):
             print(f"{i}. {company}")
-            
         while True:
             try:
                 choice = int(input(f"\nEnter choice (1-{len(companies)}): "))
@@ -66,15 +60,27 @@ class RESUIN:
                     print(f"❌ Please enter a number between 1 and {len(companies)}")
             except ValueError:
                 print("❌ Please enter a valid number")
-                
+
+    def get_analysis_mode(self) -> str:
+        """Let user choose ATS analysis mode."""
+        print("\n⚙️  Select ATS analysis mode:")
+        print("1. Rule-based (faster, fixed keyword matching)")
+        print("2. Smart analysis (slower, weighted scoring)")
+        while True:
+            choice = input("Enter choice (1-2): ").strip()
+            if choice == "1":
+                return "rule"
+            elif choice == "2":
+                return "smart"
+            else:
+                print("❌ Please enter 1 or 2")
+
     def get_job_description(self) -> Optional[str]:
         """Get job description from user"""
         print("\n📋 Job Description:")
         print("Paste the job description below (press Enter twice when done):")
-        
         lines = []
         empty_lines = 0
-        
         while empty_lines < 2:
             line = input()
             if line.strip() == "":
@@ -82,61 +88,56 @@ class RESUIN:
             else:
                 empty_lines = 0
             lines.append(line)
-            
         job_description = "\n".join(lines).strip()
         return job_description if job_description else None
-        
+
     def run_analysis(self):
         """Main application flow"""
         try:
             self.display_welcome()
-            
-            # Step 1: Get resume file
+
             resume_file = self.get_resume_file()
             print(f"✅ Resume file loaded: {os.path.basename(resume_file)}")
-            
-            # Step 2: Parse resume
+
             print("\n🔍 Parsing resume...")
             resume_data = self.parser.parse_resume(resume_file)
             if not resume_data:
                 print("❌ Failed to parse resume. Please check the file format.")
                 return
             print("✅ Resume parsed successfully")
-            
-            # Step 3: Select company
+
             company = self.get_company_selection()
             print(f"✅ Target company: {company}")
-            
-            # Step 4: Get job description
+
+            mode = self.get_analysis_mode()
+            print(f"✅ Selected ATS mode: {mode}")
+
             job_description = self.get_job_description()
             if job_description:
                 print("✅ Job description added")
-            
-            # Step 5: Run analysis
-            print(f"\n🤖 Analyzing resume for {company} ATS...")
+
+            print(f"\n🤖 Analyzing resume for {company} ATS ({mode} mode)...")
             print("This may take a few moments...")
-            
+
             analysis_result = self.analyzer.analyze_resume(
                 resume_data=resume_data,
                 company=company,
-                job_description=job_description
+                job_description=job_description,
+                mode=mode
             )
 
-            # Convert dataclass to dict if necessary
             if dataclasses.is_dataclass(analysis_result):
                 analysis_result = dataclasses.asdict(analysis_result)
-            
-            # Step 6: Generate and display report
+
             print("\n📊 Generating detailed report...\n")
             self.report_generator.display_report(analysis_result)
-            
-            # Step 7: Save report option
+
             save_option = input("\n💾 Save report to file? (y/n): ").strip().lower()
             if save_option == 'y':
                 filename = f"resuin_analysis_{company.lower().replace(' ', '_')}.txt"
                 self.report_generator.save_report(analysis_result, filename)
                 print(f"✅ Report saved as: {filename}")
-                
+
         except KeyboardInterrupt:
             print("\n\n👋 Analysis cancelled by user")
         except Exception as e:
@@ -145,7 +146,6 @@ class RESUIN:
 
 
 def main():
-    """Entry point of the application"""
     resuin = RESUIN()
     resuin.run_analysis()
 
