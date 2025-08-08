@@ -1,73 +1,93 @@
-# Welcome to your Lovable project
+# Welcome to our RESU-IN project
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/3b2ee183-b02d-45bd-b597-880ca313a6a3
+RESU-IN – Advanced Resume Analyzer
+RESU-IN is a Python-based, company-specific Resume Analysis Tool that simulates real-world ATS (Applicant Tracking System) behavior. It parses resumes, evaluates them against target companies' ATS profiles, and provides actionable improvement recommendations with a detailed report.
+📌 Features
+• Multi-company ATS simulation – Amazon, Google, Microsoft, Generic profiles (easily extendable)
+• Two analysis modes: Rule-based (deterministic) and Smart mode (flexible matching)
+• Resume parsing – Extracts sections, keywords, experience, and education from PDF/DOCX
+• Company-specific keyword analysis – Highlights matched and missing terms
+• Job description matching – Measures overlap between JD and resume
+• Detailed report generation: ATS results, section analysis, keyword coverage, recommendations
+• CLI interface – Interactive prompts for resume, company, and job description
+🗂 Project Structure
+RESU-IN/
+├── main.py                  # Entry point for the application
+├── modules/
+│   ├── __init__.py           # Module initializer
+│   ├── resume_parser.py      # Extracts data from resumes
+│   ├── company_ats.py        # Company ATS profiles & simulation logic
+│   ├── analyzer.py           # Combines parsing + ATS scoring
+│   ├── report_generator.py   # Generates formatted analysis reports
+└── README.md                 # Project documentation
+⚙️ Installation
+1. Clone the repository:
+git clone https://github.com/<your-username>/RESU-IN.git
+cd RESU-IN
+2. Install dependencies:
+pip install -r requirements.txt
+If requirements.txt is missing, install libraries like python-docx, PyPDF2, etc.
+🚀 Usage
+Run the application:
+python main.py
+Follow prompts for resume path, company selection, job description, and mode.
+🖥 Example Output
+🎯 RESUIN - Advanced Resume Analyzer
+Analyzes resumes against company-specific ATS systems
+Provides detailed scoring and improvement recommendations
 
-## How can I edit this code?
+📄 Enter resume file path (PDF/DOCX): resume.pdf
+✅ Resume file loaded: resume.pdf
 
-There are several ways of editing your application.
+🏢 Select target company:
+1. Amazon
+2. Google
+3. Microsoft
+4. Generic
 
-**Use Lovable**
+Enter choice (1-11): 3
+✅ Target company: Microsoft
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/3b2ee183-b02d-45bd-b597-880ca313a6a3) and start prompting.
+Select the mode:
+1.	Smart Mode
+2.	Rule Based
+✅ Mode Selected
 
-Changes made via Lovable will be committed automatically to this repo.
+📋 Job Description: (Paste and press Enter twice)
+✅ Job description added
 
-**Use your preferred IDE**
+🤖 Analyzing resume for Microsoft ATS...
+📊 Generating detailed report...
+...
+🏗 Extending the Project
+• Add new companies in _initialize_ats_profiles() in company_ats.py
+• Enhance resume_parser.py to handle more formats or richer extraction
+• Implement ML scoring in smart mode for advanced evaluation
+📄 License
+This project is licensed under the MIT License.
+🤝 Contributing
+Pull requests and suggestions are welcome. Open an issue or submit a PR for bugs or features.
+🛠 Editing and Pushing Updates
+Here are a few ways you can edit this README and push it to your GitHub repository:
+1. **Directly in GitHub Web UI**:
+   - Navigate to your repository on GitHub.
+   - Open `README.md` and click the edit (pencil) icon.
+   - Make your changes, add a commit message, and click **Commit changes**.
+2. **Using a Local Text Editor**:
+   - Open the repository folder on your computer.
+   - Edit `README.md` using VS Code, Sublime Text, or any text editor.
+   - Save changes and commit with:
+     ```bash
+     git add README.md
+     git commit -m "Updated README"
+     git push origin main
+     ```
+3. **Using GitHub Desktop**:
+   - Open your repository in GitHub Desktop.
+   - Edit `README.md` in your preferred editor.
+   - Commit and push changes via the GitHub Desktop interface.
+👨‍💻 Author
+Developed by Harshit Singh. For queries or collaboration, please reach out.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/3b2ee183-b02d-45bd-b597-880ca313a6a3) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
