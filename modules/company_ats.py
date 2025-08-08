@@ -68,8 +68,30 @@ class CompanyATS:
         """Get ATS profile for a specific company"""
         return self.ats_profiles.get(company, self.ats_profiles['Generic'])
 
-    def simulate_ats_filtering(self, resume_data: Dict, company: str, mode: str) -> Dict:
-        """Simulate ATS filtering for selected mode"""
+    def simulate_ats_filtering(self, resume_data: Dict, company: str = "Generic", mode: str = "rule") -> Dict:
+        """
+        Simulate ATS filtering for selected mode
+        
+        Args:
+            resume_data (Dict): Resume data to analyze
+            company (str): Company name (default: "Generic")
+            mode (str): Scoring mode - "rule" or "smart" (default: "rule")
+        
+        Returns:
+            Dict: ATS scoring results
+        """
+        # Input validation
+        if not isinstance(resume_data, dict):
+            raise ValueError("resume_data must be a dictionary")
+        
+        if company not in self.ats_profiles:
+            print(f"Warning: Company '{company}' not found. Using Generic profile.")
+            company = "Generic"
+        
+        if mode not in ["rule", "smart"]:
+            print(f"Warning: Invalid mode '{mode}'. Using 'rule' mode.")
+            mode = "rule"
+        
         profile = self.get_ats_profile(company)
 
         if mode == "rule":
@@ -522,7 +544,61 @@ class CompanyATS:
         }
 
 
-    def run_ats_simulation(self, resume_data: Dict = None) -> Dict:
+    def quick_simulate(self, resume_data: Dict, company: str = None, mode: str = None) -> Dict:
+        """
+        Quick simulation with automatic defaults - handles missing parameters gracefully
+        
+        Args:
+            resume_data (Dict): Resume data to analyze
+            company (str, optional): Company name. If None, will prompt user.
+            mode (str, optional): Scoring mode. If None, will prompt user.
+        
+        Returns:
+            Dict: ATS scoring results
+        """
+        try:
+            # Handle missing company
+            if company is None:
+                print("\n📋 Company not specified. Please select:")
+                company = self.choose_company()
+            
+            # Handle missing mode
+            if mode is None:
+                print("\n⚙️ Mode not specified. Please select:")
+                mode = self.choose_scoring_mode()
+            
+            # Run simulation
+            return self.simulate_ats_filtering(resume_data, company, mode)
+            
+        except Exception as e:
+            print(f"❌ Error in ATS simulation: {str(e)}")
+            print("🔄 Using default settings (Generic company, rule-based mode)")
+            return self.simulate_ats_filtering(resume_data, "Generic", "rule")
+    
+    def simple_score(self, resume_text: str, company: str = "Generic") -> float:
+        """
+        Simplified scoring method that only needs resume text
+        
+        Args:
+            resume_text (str): Raw resume text
+            company (str): Company name (default: Generic)
+        
+        Returns:
+            float: Overall ATS score (0-100)
+        """
+        # Convert text to basic resume data structure
+        resume_data = {
+            'contact_info': {'email': 'placeholder@email.com'},
+            'raw_text': resume_text,
+            'skills': self._extract_skills_from_text(resume_text),
+            'experience_years': self._estimate_experience_years(resume_text),
+            'education_level': self._detect_education_level(resume_text),
+            'sections': self._detect_sections(resume_text)
+        }
+        
+        # Run simulation with default rule-based mode
+        results = self.simulate_ats_filtering(resume_data, company, "rule")
+        return results['overall_ats_score']
         """
         Main method to run complete ATS simulation with user interaction
         """
@@ -558,7 +634,68 @@ class CompanyATS:
             'sections': {'experience': True, 'education': True, 'skills': True, 'summary': True}
         }
     
-    def display_results(self, results: Dict, company: str, mode: str) -> None:
+    def _extract_skills_from_text(self, text: str) -> List[str]:
+        """Extract likely skills from resume text"""
+        common_skills = [
+            'python', 'java', 'javascript', 'c++', 'sql', 'html', 'css', 'react', 'angular',
+            'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'git', 'linux', 'mongodb',
+            'machine learning', 'ai', 'data science', 'analytics', 'project management',
+            'agile', 'scrum', 'devops', 'testing', 'automation', 'cloud computing'
+        ]
+        
+        text_lower = text.lower()
+        found_skills = [skill for skill in common_skills if skill in text_lower]
+        return found_skills[:10]  # Limit to top 10 matches
+    
+    def _estimate_experience_years(self, text: str) -> int:
+        """Estimate years of experience from resume text"""
+        import re
+        
+        # Look for patterns like "5 years", "3+ years", etc.
+        year_patterns = [
+            r'(\d+)\+?\s*years?\s+(?:of\s+)?experience',
+            r'(\d+)\+?\s*years?\s+in',
+            r'experience.*?(\d+)\+?\s*years?',
+        ]
+        
+        years = []
+        for pattern in year_patterns:
+            matches = re.findall(pattern, text.lower())
+            years.extend([int(match) for match in matches])
+        
+        return max(years) if years else 2  # Default to 2 years
+    
+    def _detect_education_level(self, text: str) -> str:
+        """Detect education level from resume text"""
+        text_lower = text.lower()
+        
+        if any(term in text_lower for term in ['phd', 'ph.d', 'doctorate', 'doctoral']):
+            return 'phd'
+        elif any(term in text_lower for term in ['masters', 'master', 'mba', 'm.s', 'm.a']):
+            return 'masters'
+        elif any(term in text_lower for term in ['bachelor', 'b.s', 'b.a', 'b.tech', 'b.e']):
+            return 'bachelors'
+        else:
+            return 'bachelors'  # Default assumption
+    
+    def _detect_sections(self, text: str) -> Dict[str, bool]:
+        """Detect which sections are present in resume"""
+        text_lower = text.lower()
+        
+        sections = {}
+        section_keywords = {
+            'experience': ['experience', 'work history', 'employment', 'professional'],
+            'education': ['education', 'academic', 'university', 'college', 'degree'],
+            'skills': ['skills', 'technical skills', 'competencies', 'proficiencies'],
+            'summary': ['summary', 'objective', 'profile', 'about']
+        }
+        
+        for section, keywords in section_keywords.items():
+            sections[section] = any(keyword in text_lower for keyword in keywords)
+        
+        return sections
+
+    def run_ats_simulation(self, resume_data: Dict = None) -> Dict:
         """Display ATS simulation results in a formatted way"""
         print(f"\n🏢 COMPANY: {company}")
         print(f"🔧 MODE: {mode.upper()}")
@@ -657,19 +794,220 @@ def interactive_demo():
             print("👋 Thanks for using ATS Simulation System!")
             break
 
-def main():
-    """Main function with different usage examples"""
-    print("🎯 ATS SIMULATION SYSTEM - EXAMPLES")
+# ==================== ERROR HANDLING & DEBUGGING ====================
+
+def debug_ats_call():
+    """Debug function to test ATS calls and identify issues"""
+    print("🔍 ATS DEBUG MODE")
     print("=" * 50)
     
-    print("\n1️⃣  Testing specific company:")
-    test_specific_company("Amazon", "smart")
+    # Test 1: Basic instantiation
+    try:
+        ats = CompanyATS()
+        print("✅ ATS instantiation: SUCCESS")
+    except Exception as e:
+        print(f"❌ ATS instantiation: FAILED - {e}")
+        return
     
-    print("\n2️⃣  Comparing scoring modes:")
-    compare_modes("Google")
+    # Test 2: Sample data creation
+    try:
+        sample_data = {
+            'contact_info': {'email': 'test@example.com'},
+            'raw_text': 'Software Engineer with 3 years experience in Python, Java, and cloud computing.',
+            'skills': ['Python', 'Java', 'Cloud Computing'],
+            'experience_years': 3,
+            'education_level': 'bachelors',
+            'sections': {'experience': True, 'education': True, 'skills': True}
+        }
+        print("✅ Sample data creation: SUCCESS")
+    except Exception as e:
+        print(f"❌ Sample data creation: FAILED - {e}")
+        return
     
-    print("\n3️⃣  Interactive demo:")
-    interactive_demo()
+    # Test 3: Method calls with all parameters
+    try:
+        result1 = ats.simulate_ats_filtering(sample_data, "Amazon", "rule")
+        print("✅ Full parameter call: SUCCESS")
+        print(f"   Score: {result1['overall_ats_score']}")
+    except Exception as e:
+        print(f"❌ Full parameter call: FAILED - {e}")
+    
+    # Test 4: Method calls with default parameters
+    try:
+        result2 = ats.simulate_ats_filtering(sample_data)
+        print("✅ Default parameter call: SUCCESS")
+        print(f"   Score: {result2['overall_ats_score']}")
+    except Exception as e:
+        print(f"❌ Default parameter call: FAILED - {e}")
+    
+    # Test 5: Quick simulate method
+    try:
+        result3 = ats.quick_simulate(sample_data, "Google", "smart")
+        print("✅ Quick simulate call: SUCCESS")
+        print(f"   Score: {result3['overall_ats_score']}")
+    except Exception as e:
+        print(f"❌ Quick simulate call: FAILED - {e}")
+    
+    # Test 6: Simple score method
+    try:
+        score = ats.simple_score("I am a software engineer with Python and Java experience.")
+        print("✅ Simple score call: SUCCESS")
+        print(f"   Score: {score}")
+    except Exception as e:
+        print(f"❌ Simple score call: FAILED - {e}")
+    
+    print("\n🎯 All tests completed!")
+
+def safe_ats_call(resume_data, company=None, mode=None):
+    """
+    Completely safe ATS call that handles all errors gracefully
+    
+    Args:
+        resume_data: Resume data (dict or string)
+        company: Company name (optional)
+        mode: Scoring mode (optional)
+    
+    Returns:
+        Dict: ATS results or error information
+    """
+    try:
+        ats = CompanyATS()
+        
+        # Handle string input (convert to dict)
+        if isinstance(resume_data, str):
+            resume_data = {
+                'contact_info': {'email': 'placeholder@email.com'},
+                'raw_text': resume_data,
+                'skills': ats._extract_skills_from_text(resume_data),
+                'experience_years': ats._estimate_experience_years(resume_data),
+                'education_level': ats._detect_education_level(resume_data),
+                'sections': ats._detect_sections(resume_data)
+            }
+        
+        # Use quick_simulate for best error handling
+        return ats.quick_simulate(resume_data, company, mode)
+        
+    except Exception as e:
+        return {
+            'error': True,
+            'message': f"ATS simulation failed: {str(e)}",
+            'overall_ats_score': 0,
+            'passes_initial_screening': False,
+            'ats_recommendation': 'Unable to process resume'
+        }
+
+
+# ==================== EASY USAGE FUNCTIONS ====================
+
+def easy_ats_score(resume_text: str, company: str = "Generic") -> float:
+    """
+    Easiest way to get ATS score - just pass resume text
+    
+    Args:
+        resume_text (str): Resume content as string
+        company (str): Company name (default: Generic)
+    
+    Returns:
+        float: ATS score from 0-100
+    """
+    result = safe_ats_call(resume_text, company, "rule")
+    return result.get('overall_ats_score', 0)
+
+def compare_companies(resume_text: str, companies: List[str] = None) -> Dict[str, float]:
+    """
+    Compare ATS scores across multiple companies
+    
+    Args:
+        resume_text (str): Resume content
+        companies (List[str]): List of companies to compare (optional)
+    
+    Returns:
+        Dict[str, float]: Company names mapped to ATS scores
+    """
+    if companies is None:
+        companies = ["Amazon", "Google", "Microsoft", "Generic"]
+    
+    results = {}
+    for company in companies:
+        try:
+            score = easy_ats_score(resume_text, company)
+            results[company] = score
+        except:
+            results[company] = 0
+    
+    return results
+
+
+# Example usage and testing functions
+def test_all_error_cases():
+    """Test all possible error scenarios"""
+    print("🧪 TESTING ALL ERROR CASES")
+    print("=" * 50)
+    
+    # Test with missing arguments
+    try:
+        ats = CompanyATS()
+        # This should now work with default parameters
+        result = ats.simulate_ats_filtering({
+            'raw_text': 'test',
+            'skills': [],
+            'contact_info': {'email': 'test@test.com'}
+        })
+        print("✅ Missing arguments handled successfully")
+    except Exception as e:
+        print(f"❌ Missing arguments test failed: {e}")
+    
+    # Test with invalid data
+    try:
+        result = safe_ats_call("Just a simple resume text")
+        print("✅ String input handled successfully")
+        print(f"   Score: {result['overall_ats_score']}")
+    except Exception as e:
+        print(f"❌ String input test failed: {e}")
+    
+    # Test easy function
+    try:
+        score = easy_ats_score("Software engineer with Python and Java skills")
+        print(f"✅ Easy ATS score: {score}")
+    except Exception as e:
+        print(f"❌ Easy ATS score failed: {e}")
+    
+    # Test comparison
+    try:
+        comparison = compare_companies("Data scientist with machine learning experience")
+        print("✅ Company comparison successful:")
+        for company, score in comparison.items():
+            print(f"   {company}: {score}")
+    except Exception as e:
+        print(f"❌ Company comparison failed: {e}")
+
+
+def main():
+    """Main function with multiple options to avoid errors"""
+    print("🎯 ATS SIMULATION SYSTEM")
+    print("=" * 50)
+    
+    print("\n🔍 Running debug tests first...")
+    debug_ats_call()
+    
+    print("\n🧪 Testing error handling...")
+    test_all_error_cases()
+    
+    print("\n📊 Quick example:")
+    try:
+        # This should always work
+        score = easy_ats_score("Senior Software Engineer with 5+ years experience in Python, Java, AWS, and machine learning")
+        print(f"✅ Sample ATS Score: {score}/100")
+        
+        # Compare across companies
+        comparison = compare_companies("Data scientist with PhD and machine learning expertise", ["Google", "Amazon", "Microsoft"])
+        print("\n🏢 Company Comparison:")
+        for company, score in sorted(comparison.items(), key=lambda x: x[1], reverse=True):
+            print(f"   {company}: {score}/100")
+            
+    except Exception as e:
+        print(f"❌ Even the safe functions failed: {e}")
+        print("Please check if there are conflicts with other modules.")
 
 
 if __name__ == "__main__":
