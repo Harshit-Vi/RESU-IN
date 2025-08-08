@@ -4,8 +4,8 @@ Coordinates resume parsing, ATS simulation, keyword gap analysis, and recommenda
 """
 
 from typing import Dict, List, Optional
-from dataclasses import dataclass, asdict
-from .company_ats import CompanyATS, ATSProfile  # <-- FIXED: added ATSProfile
+from dataclasses import dataclass
+from .company_ats import CompanyATS, ATSProfile
 import re
 
 
@@ -28,19 +28,18 @@ class ResumeAnalyzer:
         self,
         resume_data: Dict,
         company: str,
-        job_description: Optional[str] = None
+        job_description: Optional[str] = None,
+        mode: str = "rule"   # <-- Added mode parameter
     ) -> AnalysisResult:
         """Run full resume analysis workflow."""
-        # Normalize sections to avoid type mismatch
         if "sections" in resume_data:
             resume_data["sections"] = self._normalize_sections(resume_data["sections"])
 
-        ats_results = self.company_ats.simulate_ats_filtering(resume_data, company)
+        ats_results = self.company_ats.simulate_ats_filtering(resume_data, company, mode)
 
         section_analysis = self._analyze_sections(resume_data, ats_results["ats_profile"])
         keyword_gaps = self._analyze_keywords(resume_data, ats_results["ats_profile"], job_description)
         recommendations = self._generate_recommendations(section_analysis, keyword_gaps)
-
         overall_score = self._calculate_overall_score(ats_results, section_analysis)
 
         resume_summary = {
@@ -76,12 +75,9 @@ class ResumeAnalyzer:
         section_analysis = {}
         for section_name, section_info in resume_data.get("sections", {}).items():
             present = section_info["present"]
-            text = section_info.get("text", "")
             word_count = section_info.get("word_count", 0)
-
             strength = self._assess_section_strength(section_name, word_count)
             suggestions = self._get_section_suggestions(section_name, strength, ats_profile)
-
             section_analysis[section_name] = {
                 "present": present,
                 "strength": strength,
@@ -113,7 +109,6 @@ class ResumeAnalyzer:
         suggestions = []
         if not strength or strength in ["Poor", "Fair"]:
             suggestions.append(f"Enhance {section_name} section with more relevant details and keywords.")
-        # Example: match ATS-required keywords
         if ats_profile.required_keywords:
             suggestions.append(f"Include role-specific keywords for {section_name}.")
         return suggestions
@@ -153,7 +148,6 @@ class ResumeAnalyzer:
     def _extract_keywords_from_jd(self, job_description: str) -> List[str]:
         """Naive keyword extraction from job description."""
         words = re.findall(r"[A-Za-z]+", job_description)
-        # Remove common words
         stopwords = {"and", "the", "to", "of", "in", "for", "with", "on", "at", "by"}
         return [w for w in words if w.lower() not in stopwords and len(w) > 2]
 
@@ -164,7 +158,6 @@ class ResumeAnalyzer:
     ) -> List[Dict]:
         """Create actionable recommendations based on gaps."""
         recs = []
-        # Section improvements
         for section, data in section_analysis.items():
             if not data["present"] or data["strength"] in ["Poor", "Fair"]:
                 recs.append({
@@ -178,7 +171,6 @@ class ResumeAnalyzer:
                         "Align content with job requirements"
                     ]
                 })
-        # Keyword gaps
         if keyword_gaps["missing_company_keywords"]:
             recs.append({
                 "priority": "High",
