@@ -1,367 +1,211 @@
 """
-Resume Analyzer Module (Optimized)
-Core analysis logic that combines parsing, ATS simulation, and scoring
+Analyzer Module
+Coordinates resume parsing, ATS simulation, keyword gap analysis, and recommendations.
 """
 
+from typing import Dict, List, Optional
+from dataclasses import dataclass, asdict
+from .company_ats import CompanyATS, ATSProfile  # <-- FIXED: added ATSProfile
 import re
-from typing import Dict, List, Optional, Set
-from dataclasses import dataclass
-from .company_ats import CompanyATS
+
 
 @dataclass
 class AnalysisResult:
-    """Dataclass to store analysis results"""
+    company: str
     overall_score: float
     ats_results: Dict
     section_analysis: Dict
     keyword_gaps: Dict
-    job_description_analysis: Dict
     recommendations: List[Dict]
-    company: str
     resume_summary: Dict
+
 
 class ResumeAnalyzer:
     def __init__(self):
         self.company_ats = CompanyATS()
-        self._setup_keyword_mappings()
-        
-    def _setup_keyword_mappings(self):
-        """Initialize keyword mappings for analysis"""
-        self.skill_keywords = [
-            'python', 'java', 'javascript', 'c++', 'sql', 'html', 'css',
-            'react', 'angular', 'vue', 'node.js', 'django', 'flask',
-            'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'git',
-            'machine learning', 'ai', 'data science', 'analytics'
-        ]
-        
-        self.responsibility_indicators = [
-            'responsible for', 'will be responsible', 'responsibilities include',
-            'key responsibilities', 'duties include', 'role involves'
-        ]
-        
-        self.education_keywords = ['bachelor', 'master', 'phd', 'degree']
-        
-    def analyze_resume(self, resume_data: Dict, company: str = "Generic", 
-                      job_description: Optional[str] = None, mode: str = "rule") -> AnalysisResult:
-        """Perform comprehensive resume analysis with optimized scoring"""
-        
-        # Validate inputs
-        if not isinstance(resume_data, dict):
-            raise ValueError("resume_data must be a dictionary")
-            
-        if company not in self.company_ats.get_available_companies():
-            company = "Generic"
-            
-        if mode not in ["rule", "smart"]:
-            mode = "rule"
-        
-        # Get ATS simulation results
-        ats_results = self.company_ats.simulate_ats_filtering(resume_data, company, mode)
-        
-        # Analyze job description if provided
-        jd_analysis = self._analyze_job_description(job_description) if job_description else {}
-        
-        # Calculate keyword gaps using ATS profile
-        keyword_gaps = self._calculate_keyword_gaps(resume_data, jd_analysis, company)
-        
-        # Section-wise analysis
-        section_analysis = self._analyze_sections(resume_data, company)
-        
-        # Generate recommendations
-        recommendations = self._generate_recommendations(
-            resume_data, ats_results, keyword_gaps, section_analysis, company
-        )
-        
-        # Calculate overall score
+
+    def analyze_resume(
+        self,
+        resume_data: Dict,
+        company: str,
+        job_description: Optional[str] = None
+    ) -> AnalysisResult:
+        """Run full resume analysis workflow."""
+        # Normalize sections to avoid type mismatch
+        if "sections" in resume_data:
+            resume_data["sections"] = self._normalize_sections(resume_data["sections"])
+
+        ats_results = self.company_ats.simulate_ats_filtering(resume_data, company)
+
+        section_analysis = self._analyze_sections(resume_data, ats_results["ats_profile"])
+        keyword_gaps = self._analyze_keywords(resume_data, ats_results["ats_profile"], job_description)
+        recommendations = self._generate_recommendations(section_analysis, keyword_gaps)
+
         overall_score = self._calculate_overall_score(ats_results, section_analysis)
-        
+
+        resume_summary = {
+            "total_experience": resume_data.get("experience_years", 0),
+            "skill_count": len(resume_data.get("skills", [])),
+            "section_count": len([sec for sec in resume_data.get("sections", {}) if resume_data["sections"][sec]]),
+        }
+
         return AnalysisResult(
+            company=company,
             overall_score=overall_score,
             ats_results=ats_results,
             section_analysis=section_analysis,
             keyword_gaps=keyword_gaps,
-            job_description_analysis=jd_analysis,
             recommendations=recommendations,
-            company=company,
-            resume_summary=self._generate_resume_summary(resume_data)
+            resume_summary=resume_summary
         )
-    
-    def _analyze_job_description(self, job_description: str) -> Dict:
-        """Optimized job description analysis using regex patterns"""
-        if not job_description:
-            return {}
-            
-        jd_lower = job_description.lower()
-        
-        # Extract required skills
-        found_skills = [skill for skill in self.skill_keywords if skill in jd_lower]
-        
-        # Extract experience requirements
-        exp_pattern = r'(\d+)\+?\s*years?\s*(of\s*)?(experience|exp)'
-        exp_matches = re.findall(exp_pattern, jd_lower)
-        required_experience = max([int(match[0]) for match in exp_matches]) if exp_matches else 0
-        
-        # Extract education requirements
-        required_education = [edu for edu in self.education_keywords if edu in jd_lower]
-        
-        # Extract key responsibilities
-        responsibilities = []
-        for indicator in self.responsibility_indicators:
-            if indicator in jd_lower:
-                start_idx = jd_lower.find(indicator)
-                text_after = job_description[start_idx:start_idx + 500]
-                responsibilities.append(text_after.split('.')[0])
-        
-        return {
-            'required_skills': found_skills,
-            'required_experience': required_experience,
-            'required_education': required_education,
-            'key_responsibilities': responsibilities,
-            'total_keywords': len(job_description.split())
-        }
-    
-    def _calculate_keyword_gaps(self, resume_data: Dict, jd_analysis: Dict, company: str) -> Dict:
-        """Optimized keyword gap analysis using ATS profile"""
-        resume_text = resume_data.get('raw_text', '').lower()
-        resume_skills = set(skill.lower() for skill in resume_data.get('skills', []))
-        
-        # Get company profile and keywords
-        ats_profile = self.company_ats.get_ats_profile(company)
-        company_keywords = set(kw.lower() for kw in ats_profile.preferred_keywords)
-        
-        # Check for synonyms
-        matched_with_synonyms = 0
-        for kw in company_keywords:
-            if kw in resume_text:
-                matched_with_synonyms += 1
-            elif kw in self.company_ats.synonym_map:
-                if any(syn in resume_text for syn in self.company_ats.synonym_map[kw]):
-                    matched_with_synonyms += 0.8
-        
-        # Job description requirements
-        jd_skills = set(skill.lower() for skill in jd_analysis.get('required_skills', []))
-        
-        # Find gaps and matches
-        missing_company_keywords = company_keywords - set(resume_text.split())
-        missing_jd_skills = jd_skills - resume_skills
-        matched_company_keywords = company_keywords.intersection(set(resume_text.split()))
-        matched_jd_skills = jd_skills.intersection(resume_skills)
-        
-        return {
-            'missing_company_keywords': list(missing_company_keywords),
-            'missing_jd_skills': list(missing_jd_skills),
-            'matched_company_keywords': list(matched_company_keywords),
-            'matched_jd_skills': list(matched_jd_skills),
-            'keyword_match_percentage': (matched_with_synonyms / len(company_keywords) * 100 
-                                       if company_keywords else 0),
-            'jd_skill_match_percentage': (len(matched_jd_skills) / len(jd_skills) * 100 
-                                       if jd_skills else 0)
-        }
-    
-    def _analyze_sections(self, resume_data: Dict, company: str) -> Dict:
-        """Optimized section analysis with ATS profile awareness"""
-        sections = resume_data.get('sections', {})
-        analysis = {}
-        ats_profile = self.company_ats.get_ats_profile(company)
-        
-        # Analyze each section
-        for section_name, content in sections.items():
-            strength = self._assess_section_strength(section_name, content, company)
-            
-            analysis[section_name] = {
-                'present': True,
-                'word_count': len(content.split()),
-                'strength': strength,
-                'suggestions': self._get_section_suggestions(
-                    section_name, content, company, strength, ats_profile
-                )
+
+    def _normalize_sections(self, sections: Dict) -> Dict:
+        """Ensure sections dict is in a consistent format."""
+        normalized = {}
+        for key, value in sections.items():
+            if isinstance(value, str):
+                normalized[key] = {"present": bool(value.strip()), "text": value, "word_count": len(value.split())}
+            elif isinstance(value, dict):
+                normalized[key] = value
+            else:
+                normalized[key] = {"present": bool(value), "text": "", "word_count": 0}
+        return normalized
+
+    def _analyze_sections(self, resume_data: Dict, ats_profile: ATSProfile) -> Dict:
+        """Evaluate each resume section for completeness and strength."""
+        section_analysis = {}
+        for section_name, section_info in resume_data.get("sections", {}).items():
+            present = section_info["present"]
+            text = section_info.get("text", "")
+            word_count = section_info.get("word_count", 0)
+
+            strength = self._assess_section_strength(section_name, word_count)
+            suggestions = self._get_section_suggestions(section_name, strength, ats_profile)
+
+            section_analysis[section_name] = {
+                "present": present,
+                "strength": strength,
+                "word_count": word_count,
+                "suggestions": suggestions
             }
-        
-        # Check for missing critical sections
-        critical_sections = ['experience', 'education', 'skills']
-        if ats_profile.company in ['Google', 'Amazon', 'Microsoft']:
-            critical_sections.append('summary')
-            
-        for critical in critical_sections:
-            if critical not in analysis:
-                analysis[critical] = {
-                    'present': False,
-                    'word_count': 0,
-                    'strength': 'Poor',
-                    'suggestions': [f'Add a {critical} section to your resume']
-                }
-        
-        return analysis
-    
-    def _assess_section_strength(self, section_name: str, content: str, company: str) -> str:
-        """Optimized section strength assessment with company awareness"""
-        word_count = len(content.split())
-        content_lower = content.lower()
-        ats_profile = self.company_ats.get_ats_profile(company)
-        
-        if section_name == 'experience':
-            if word_count > 200 and any(kw in content_lower 
-                                      for kw in ['achieved', 'led', 'managed']):
-                return 'Excellent'
-            return 'Good' if word_count > 100 else 'Fair' if word_count > 50 else 'Poor'
-        
-        elif section_name == 'skills':
-            skill_count = len([word for word in content.split() if len(word) > 2])
-            threshold = 15 if ats_profile.company in ['Google', 'Amazon'] else 10
-            if skill_count > threshold:
-                return 'Excellent'
-            return 'Good' if skill_count > threshold-5 else 'Fair' if skill_count > 5 else 'Poor'
-        
-        elif section_name == 'summary':
-            if 50 < word_count < 150:
-                return 'Good'
-            return 'Fair' if word_count > 20 else 'Poor'
-        
-        return 'Good' if word_count > 50 else 'Fair' if word_count > 20 else 'Poor'
-    
-    def _get_section_suggestions(self, section_name: str, content: str, 
-                               company: str, strength: str, ats_profile: ATSProfile) -> List[str]:
-        """Optimized section suggestions with company-specific advice"""
+        return section_analysis
+
+    def _assess_section_strength(self, section_name: str, word_count: int) -> str:
+        """Heuristic to rate section strength."""
+        if word_count > 100:
+            return "Excellent"
+        elif word_count > 50:
+            return "Good"
+        elif word_count > 20:
+            return "Fair"
+        elif word_count > 0:
+            return "Poor"
+        else:
+            return "Poor"
+
+    def _get_section_suggestions(
+        self,
+        section_name: str,
+        strength: str,
+        ats_profile: ATSProfile
+    ) -> List[str]:
+        """Provide section-specific improvement suggestions."""
         suggestions = []
-        content_lower = content.lower()
-        
-        if section_name == 'experience' and strength in ['Fair', 'Poor']:
-            if 'achieved' not in content_lower:
-                suggestions.append('Add quantifiable achievements and metrics')
-            if not any(kw in content_lower for kw in ['led', 'managed', 'directed']):
-                suggestions.append('Include leadership and management experience')
-        
-        elif section_name == 'skills':
-            missing_skills = [skill for skill in ats_profile.preferred_keywords 
-                            if skill.lower() not in content_lower]
-            if missing_skills:
-                suggestions.append(f'Consider adding: {", ".join(list(missing_skills)[:3])}')
-        
-        elif section_name == 'summary' and strength in ['Fair', 'Poor']:
-            suggestions.append('Expand summary to 3-4 sentences highlighting key strengths')
-        
+        if not strength or strength in ["Poor", "Fair"]:
+            suggestions.append(f"Enhance {section_name} section with more relevant details and keywords.")
+        # Example: match ATS-required keywords
+        if ats_profile.required_keywords:
+            suggestions.append(f"Include role-specific keywords for {section_name}.")
         return suggestions
-    
-    def _generate_recommendations(self, resume_data: Dict, ats_results: Dict, 
-                                keyword_gaps: Dict, section_analysis: Dict, company: str) -> List[Dict]:
-        """Optimized recommendation generation with priority scoring"""
-        recommendations = []
-        ats_profile = self.company_ats.get_ats_profile(company)
-        
-        # Priority scoring system (1-3, higher is more important)
-        priorities = []
-        
-        # ATS-based recommendations
-        if ats_results['overall_ats_score'] < 70:
-            priorities.append({
-                'score': 3,
-                'category': 'ATS Optimization',
-                'title': 'Improve ATS Compatibility',
-                'description': 'Your resume needs optimization for ATS systems',
-                'actions': [
-                    'Add more relevant keywords',
-                    'Improve formatting and structure',
-                    'Include required skills'
-                ]
-            })
-        
-        # Keyword gap recommendations
-        if keyword_gaps['missing_company_keywords']:
-            priorities.append({
-                'score': 3 if len(keyword_gaps['missing_company_keywords']) > 5 else 2,
-                'category': 'Keywords',
-                'title': 'Add Company-Specific Keywords',
-                'description': f'Missing important keywords for {company}',
-                'actions': [
-                    f'Include: {", ".join(list(keyword_gaps["missing_company_keywords"])[:3])}'
-                ]
-            })
-        
-        # Section improvement recommendations
-        weak_sections = [name for name, data in section_analysis.items() 
-                        if data['strength'] in ['Poor', 'Fair']]
-        
-        if weak_sections:
-            priorities.append({
-                'score': 2,
-                'category': 'Content',
-                'title': 'Strengthen Weak Sections',
-                'description': 'Some sections need improvement',
-                'actions': [f'Improve {section} section' for section in weak_sections[:2]]
-            })
-        
-        # Experience recommendations
-        years_exp = resume_data.get('experience_years', 0)
-        req_exp = ats_profile.experience_requirements.get('mid', 3)
-        if years_exp < req_exp:
-            priorities.append({
-                'score': 2 if (req_exp - years_exp) > 2 else 1,
-                'category': 'Experience',
-                'title': 'Highlight All Relevant Experience',
-                'description': 'Include internships, projects, and freelance work',
-                'actions': [
-                    'Add internship experience',
-                    'Include significant projects',
-                    'Mention freelance or volunteer work'
-                ]
-            })
-        
-        # Format recommendations
-        if ats_results['format_score'] < 80:
-            priorities.append({
-                'score': 1,
-                'category': 'Format',
-                'title': 'Improve Resume Format',
-                'description': 'Format optimization for better ATS parsing',
-                'actions': [
-                    'Use standard section headings',
-                    'Ensure contact information is clear',
-                    'Use bullet points for better readability'
-                ]
-            })
-        
-        # Sort by priority score (highest first)
-        priorities.sort(key=lambda x: x['score'], reverse=True)
-        
-        # Convert to final recommendation format
-        for item in priorities:
-            recommendations.append({
-                'priority': 'High' if item['score'] == 3 else 'Medium' if item['score'] == 2 else 'Low',
-                'category': item['category'],
-                'title': item['title'],
-                'description': item['description'],
-                'action_items': item['actions']
-            })
-        
-        return recommendations
-    
-    def _calculate_overall_score(self, ats_results: Dict, section_analysis: Dict) -> int:
-        """Optimized scoring calculation with ATS profile awareness"""
-        ats_score = ats_results['overall_ats_score']
-        
-        # Section quality score
-        section_scores = {
-            'Excellent': 100,
-            'Good': 80,
-            'Fair': 60,
-            'Poor': 40
-        }
-        
-        present_sections = [data for data in section_analysis.values() if data['present']]
-        avg_section_score = (sum(section_scores.get(data['strength'], 40) 
-                           for data in present_sections) / len(present_sections)) if present_sections else 40
-        
-        # Weighted average favoring ATS score
-        return int(min((ats_score * 0.7) + (avg_section_score * 0.3), 100))
-    
-    def _generate_resume_summary(self, resume_data: Dict) -> Dict:
-        """Optimized resume summary generation"""
+
+    def _analyze_keywords(
+        self,
+        resume_data: Dict,
+        ats_profile: ATSProfile,
+        job_description: Optional[str]
+    ) -> Dict:
+        """Compare resume keywords with ATS/company requirements and job description."""
+        company_keywords = ats_profile.required_keywords
+        resume_text = " ".join([sec.get("text", "") for sec in resume_data["sections"].values()])
+
+        matched_company_keywords = [kw for kw in company_keywords if kw.lower() in resume_text.lower()]
+        missing_company_keywords = [kw for kw in company_keywords if kw.lower() not in resume_text.lower()]
+
+        jd_skill_match_percentage = None
+        missing_jd_skills = []
+        if job_description:
+            jd_keywords = self._extract_keywords_from_jd(job_description)
+            matched_jd = [kw for kw in jd_keywords if kw.lower() in resume_text.lower()]
+            missing_jd_skills = [kw for kw in jd_keywords if kw.lower() not in resume_text.lower()]
+            if jd_keywords:
+                jd_skill_match_percentage = (len(matched_jd) / len(jd_keywords)) * 100
+
+        keyword_match_percentage = (len(matched_company_keywords) / len(company_keywords) * 100) if company_keywords else 0
+
         return {
-            'total_experience': resume_data.get('experience_years', 0),
-            'education_level': resume_data.get('education_level', 'Unknown'),
-            'skill_count': len(resume_data.get('skills', [])),
-            'has_contact_info': bool(resume_data.get('contact_info', {}).get('email')),
-            'section_count': len(resume_data.get('sections', {})),
-            'word_count': len(resume_data.get('raw_text', '').split()),
-            'last_updated': resume_data.get('last_updated', 'Unknown')
+            "keyword_match_percentage": keyword_match_percentage,
+            "matched_company_keywords": matched_company_keywords,
+            "missing_company_keywords": missing_company_keywords,
+            "jd_skill_match_percentage": jd_skill_match_percentage,
+            "missing_jd_skills": missing_jd_skills
         }
+
+    def _extract_keywords_from_jd(self, job_description: str) -> List[str]:
+        """Naive keyword extraction from job description."""
+        words = re.findall(r"[A-Za-z]+", job_description)
+        # Remove common words
+        stopwords = {"and", "the", "to", "of", "in", "for", "with", "on", "at", "by"}
+        return [w for w in words if w.lower() not in stopwords and len(w) > 2]
+
+    def _generate_recommendations(
+        self,
+        section_analysis: Dict,
+        keyword_gaps: Dict
+    ) -> List[Dict]:
+        """Create actionable recommendations based on gaps."""
+        recs = []
+        # Section improvements
+        for section, data in section_analysis.items():
+            if not data["present"] or data["strength"] in ["Poor", "Fair"]:
+                recs.append({
+                    "priority": "High",
+                    "title": f"Improve {section} section",
+                    "category": "Content",
+                    "description": f"The {section} section is {data['strength']}. Add more details and relevant keywords.",
+                    "action_items": [
+                        f"Expand on your {section} experience",
+                        f"Add quantifiable achievements",
+                        "Align content with job requirements"
+                    ]
+                })
+        # Keyword gaps
+        if keyword_gaps["missing_company_keywords"]:
+            recs.append({
+                "priority": "High",
+                "title": "Add missing company-required keywords",
+                "category": "Keywords",
+                "description": "Include these missing company-specific keywords to improve ATS match.",
+                "action_items": keyword_gaps["missing_company_keywords"]
+            })
+        if keyword_gaps.get("missing_jd_skills"):
+            recs.append({
+                "priority": "Medium",
+                "title": "Add missing job-specific skills",
+                "category": "Keywords",
+                "description": "Incorporate these skills from the job description.",
+                "action_items": keyword_gaps["missing_jd_skills"]
+            })
+        return recs
+
+    def _calculate_overall_score(self, ats_results: Dict, section_analysis: Dict) -> float:
+        """Compute weighted overall score."""
+        ats_score = ats_results["overall_ats_score"]
+        section_score = sum(
+            {"Excellent": 100, "Good": 80, "Fair": 60, "Poor": 40}.get(data["strength"], 0)
+            for data in section_analysis.values()
+        ) / max(len(section_analysis), 1)
+        return round((ats_score * 0.7) + (section_score * 0.3), 2)
+
+
+if __name__ == "__main__":
+    print("Analyzer module is not meant to be run standalone.")
