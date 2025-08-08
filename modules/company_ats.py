@@ -522,36 +522,154 @@ class CompanyATS:
         }
 
 
-# Example usage and testing
-def main():
-    """Example usage of the ATS simulation"""
-    # Initialize ATS system
+    def run_ats_simulation(self, resume_data: Dict = None) -> Dict:
+        """
+        Main method to run complete ATS simulation with user interaction
+        """
+        print("=== Welcome to ATS Simulation System ===")
+        
+        # Use sample data if none provided
+        if resume_data is None:
+            resume_data = self.get_sample_resume_data()
+        
+        # Get user choices
+        mode = self.choose_scoring_mode()
+        company = self.choose_company()
+        
+        print(f"\nRunning ATS simulation for {company} using {mode} mode...")
+        print("-" * 50)
+        
+        # Run simulation
+        results = self.simulate_ats_filtering(resume_data, company, mode)
+        
+        # Display results
+        self.display_results(results, company, mode)
+        
+        return results
+    
+    def get_sample_resume_data(self) -> Dict:
+        """Get sample resume data for testing"""
+        return {
+            'contact_info': {'email': 'test@example.com'},
+            'raw_text': 'Software Engineer with 5 years experience in Java, Python, AWS cloud computing, machine learning, and system design. Led teams and delivered scalable solutions. Experience with agile methodologies, microservices architecture, and database management.',
+            'skills': ['Java', 'Python', 'AWS', 'Machine Learning', 'System Design', 'Microservices', 'Agile'],
+            'experience_years': 5,
+            'education_level': 'bachelors',
+            'sections': {'experience': True, 'education': True, 'skills': True, 'summary': True}
+        }
+    
+    def display_results(self, results: Dict, company: str, mode: str) -> None:
+        """Display ATS simulation results in a formatted way"""
+        print(f"\n🏢 COMPANY: {company}")
+        print(f"🔧 MODE: {mode.upper()}")
+        print("=" * 60)
+        
+        print(f"📊 OVERALL ATS SCORE: {results['overall_ats_score']}/100")
+        print(f"✅ PASSES INITIAL SCREENING: {'YES' if results['passes_initial_screening'] else 'NO'}")
+        print(f"📝 RECOMMENDATION: {results['ats_recommendation']}")
+        
+        print("\n📈 DETAILED SCORES:")
+        print(f"   • Keyword Score: {results['keyword_score']}/100")
+        print(f"   • Experience Score: {results['experience_score']}/100")
+        print(f"   • Education Score: {results['education_score']}/100")
+        print(f"   • Skills Score: {results['skills_score']}/100")
+        print(f"   • Format Score: {results['format_score']}/100")
+        
+        if results['company_specific_notes']:
+            print(f"\n💡 COMPANY-SPECIFIC RECOMMENDATIONS:")
+            for note in results['company_specific_notes']:
+                print(f"   • {note}")
+        
+        print("\n" + "=" * 60)
+
+
+# Example usage and testing functions
+def test_specific_company(company_name: str = "Amazon", mode: str = "smart"):
+    """Test ATS simulation for a specific company and mode"""
     ats = CompanyATS()
     
-    # Sample resume data for testing
     sample_resume = {
-        'contact_info': {'email': 'test@example.com'},
-        'raw_text': 'Software Engineer with 5 years experience in Java, Python, AWS cloud computing, machine learning, and system design. Led teams and delivered scalable solutions.',
-        'skills': ['Java', 'Python', 'AWS', 'Machine Learning', 'System Design'],
-        'experience_years': 5,
-        'education_level': 'bachelors',
+        'contact_info': {'email': 'john.doe@example.com'},
+        'raw_text': '''Senior Software Engineer with 8 years of experience in distributed systems, 
+        cloud computing, and machine learning. Proficient in Java, Python, AWS, microservices architecture.
+        Led multiple teams and delivered scalable solutions serving millions of customers. Experience with
+        system design, algorithms, data structures, and performance optimization. Strong background in
+        leadership principles and customer obsession.''',
+        'skills': ['Java', 'Python', 'AWS', 'Machine Learning', 'System Design', 'Microservices', 
+                  'Leadership', 'Algorithms', 'Data Structures'],
+        'experience_years': 8,
+        'education_level': 'masters',
         'sections': {'experience': True, 'education': True, 'skills': True, 'summary': True}
     }
     
-    # Test both modes
-    print("=== ATS Simulation Test ===")
+    print(f"=== Testing {company_name} - {mode.upper()} Mode ===")
+    results = ats.simulate_ats_filtering(sample_resume, company_name, mode)
+    ats.display_results(results, company_name, mode)
+    return results
+
+def compare_modes(company_name: str = "Google"):
+    """Compare rule-based vs smart mode for the same company"""
+    ats = CompanyATS()
     
-    # Rule-based scoring
-    rule_result = ats.simulate_ats_filtering(sample_resume, 'Amazon', 'rule')
-    print("\nRule-based scoring for Amazon:")
-    for key, value in rule_result.items():
-        print(f"{key}: {value}")
+    sample_resume = {
+        'contact_info': {'email': 'alice.smith@example.com'},
+        'raw_text': '''Data Scientist with 6 years of experience in machine learning, artificial intelligence,
+        and big data analytics. Expert in Python, TensorFlow, algorithms, and statistical modeling.
+        Published research papers and contributed to open-source ML projects. Experience with distributed
+        systems, cloud platforms (GCP), and performance optimization.''',
+        'skills': ['Python', 'Machine Learning', 'TensorFlow', 'Algorithms', 'Statistics', 
+                  'Research', 'GCP', 'Data Analysis'],
+        'experience_years': 6,
+        'education_level': 'phd',
+        'sections': {'experience': True, 'education': True, 'skills': True, 'summary': True}
+    }
     
-    # Smart scoring
-    smart_result = ats.simulate_ats_filtering(sample_resume, 'Amazon', 'smart')
-    print("\nSmart scoring for Amazon:")
-    for key, value in smart_result.items():
-        print(f"{key}: {value}")
+    print(f"=== COMPARING MODES FOR {company_name} ===")
+    
+    # Test rule-based
+    rule_results = ats.simulate_ats_filtering(sample_resume, company_name, 'rule')
+    print("\n🔧 RULE-BASED MODE:")
+    print(f"Overall Score: {rule_results['overall_ats_score']}/100")
+    
+    # Test smart mode
+    smart_results = ats.simulate_ats_filtering(sample_resume, company_name, 'smart')
+    print("\n🧠 SMART MODE:")
+    print(f"Overall Score: {smart_results['overall_ats_score']}/100")
+    
+    print(f"\n📊 SCORE DIFFERENCE: {abs(smart_results['overall_ats_score'] - rule_results['overall_ats_score']):.2f} points")
+
+def interactive_demo():
+    """Run interactive demo of the ATS system"""
+    ats = CompanyATS()
+    
+    print("🚀 Starting Interactive ATS Simulation Demo...")
+    print("\nUsing sample resume data for demonstration.")
+    
+    # Run the full interactive simulation
+    results = ats.run_ats_simulation()
+    
+    # Ask if user wants to try another combination
+    while True:
+        try_again = input("\n❓ Would you like to try another company/mode? (y/n): ").strip().lower()
+        if try_again == 'y':
+            results = ats.run_ats_simulation()
+        else:
+            print("👋 Thanks for using ATS Simulation System!")
+            break
+
+def main():
+    """Main function with different usage examples"""
+    print("🎯 ATS SIMULATION SYSTEM - EXAMPLES")
+    print("=" * 50)
+    
+    print("\n1️⃣  Testing specific company:")
+    test_specific_company("Amazon", "smart")
+    
+    print("\n2️⃣  Comparing scoring modes:")
+    compare_modes("Google")
+    
+    print("\n3️⃣  Interactive demo:")
+    interactive_demo()
 
 
 if __name__ == "__main__":
