@@ -23,14 +23,14 @@ class ATSProfile:
     education_preferences: List[str]
     scoring_strictness: float  # 0.0 to 1.0
     common_filters: List[str]
-
+    required_keywords: Set[str] = None  # NEW FIELD
 
 class CompanyATS:
     """Main ATS simulation class with rule-based and smart scoring modes"""
 
-    def __init__(self):
-        self.ats_profiles = self._initialize_ats_profiles()
-        self.synonym_map = self._build_synonym_map()
+    def __post_init__(self):
+        if self.required_keywords is None:
+            self.required_keywords = set(self.preferred_keywords)
 
     def get_available_companies(self) -> List[str]:
         """Get list of available companies"""
