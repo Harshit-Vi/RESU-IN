@@ -1,3 +1,4 @@
+resume_parser.py
 """
 Resume Parser Module
 Handles parsing of PDF and DOCX resume files
@@ -16,7 +17,7 @@ try:
 except ImportError:
     print("Required packages not installed. Please install:")
     print("pip install PyPDF2 python-docx pytesseract pdf2image pillow")
-    exit(1)
+    raise ImportError('Required packages not installed. Please run: pip install PyPDF2 python-docx pytesseract pdf2image pillow')
 
 
 class ResumeParser:
@@ -256,3 +257,4 @@ class ResumeParser:
                 if keyword in text_lower:
                     return level
         return 'unknown'
+
