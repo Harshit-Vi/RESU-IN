@@ -5,13 +5,19 @@ Generates detailed analysis reports and displays results
 
 from typing import Dict, List
 import datetime
+import sys
+import dataclasses
 
 class ReportGenerator:
     def __init__(self):
         self.report_template = self._load_report_template()
     
-    def display_report(self, analysis_result: Dict):
+    def display_report(self, analysis_result):
         """Display comprehensive analysis report"""
+        # Ensure analysis_result is a dict
+        if dataclasses.is_dataclass(analysis_result):
+            analysis_result = dataclasses.asdict(analysis_result)
+
         self._print_header(analysis_result)
         self._print_overall_score(analysis_result)
         self._print_ats_analysis(analysis_result)
@@ -20,20 +26,14 @@ class ReportGenerator:
         self._print_recommendations(analysis_result)
         self._print_footer()
     
-    def save_report(self, analysis_result: Dict, filename: str):
+    def save_report(self, analysis_result, filename: str):
         """Save report to file"""
         try:
             with open(filename, 'w', encoding='utf-8') as f:
-                # Redirect print to file
-                import sys
                 original_stdout = sys.stdout
                 sys.stdout = f
-                
                 self.display_report(analysis_result)
-                
-                # Restore stdout
                 sys.stdout = original_stdout
-                
         except Exception as e:
             print(f"Error saving report: {str(e)}")
     
@@ -138,7 +138,6 @@ class ReportGenerator:
         print("\n💡 IMPROVEMENT RECOMMENDATIONS")
         print("=" * 40)
         
-        # Group by priority
         high_priority = [r for r in recommendations if r['priority'] == 'High']
         medium_priority = [r for r in recommendations if r['priority'] == 'Medium']
         low_priority = [r for r in recommendations if r['priority'] == 'Low']
@@ -166,13 +165,11 @@ class ReportGenerator:
         print("=" * 80)
     
     def _format_resume_summary(self, summary: Dict) -> str:
-        """Format resume summary"""
         return (f"{summary['total_experience']} years exp, "
                 f"{summary['skill_count']} skills, "
                 f"{summary['section_count']} sections")
     
     def _get_score_assessment(self, score: int) -> str:
-        """Get score assessment"""
         if score >= 85:
             return "Excellent - Strong chance of success"
         elif score >= 75:
@@ -185,21 +182,18 @@ class ReportGenerator:
             return "Critical - Major overhaul needed"
     
     def _get_score_bar(self, score: float) -> str:
-        """Generate visual score bar"""
         bar_length = 30
         filled_length = int(bar_length * score / 100)
         bar = "█" * filled_length + "░" * (bar_length - filled_length)
         return f"[{bar}] {score:.1f}%"
     
     def _get_mini_bar(self, score: float) -> str:
-        """Generate mini visual score bar"""
         bar_length = 10
         filled_length = int(bar_length * score / 100)
         bar = "█" * filled_length + "░" * (bar_length - filled_length)
         return f"[{bar}]"
     
     def _get_strength_emoji(self, strength: str) -> str:
-        """Get emoji for section strength"""
         emoji_map = {
             'Excellent': '🌟',
             'Good': '✅',
@@ -209,11 +203,8 @@ class ReportGenerator:
         return emoji_map.get(strength, '❓')
     
     def _print_keyword_list(self, keywords: List[str]):
-        """Print keywords in formatted columns"""
         if not keywords:
             return
-            
-        # Print in columns
         cols = 3
         for i in range(0, len(keywords), cols):
             row = keywords[i:i+cols]
@@ -221,5 +212,4 @@ class ReportGenerator:
             print("   " + "".join(formatted_row))
     
     def _load_report_template(self) -> str:
-        """Load report template (placeholder for future templates)"""
         return ""
