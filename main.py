@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 RESUIN - Resume Analyzer Main Application
 A comprehensive resume analysis tool that simulates company-specific ATS behavior
