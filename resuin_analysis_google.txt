@@ -1,0 +1,119 @@
+================================================================================
+🎯 RESUIN - RESUME ANALYSIS REPORT
+================================================================================
+📅 Generated: 2025-08-08 22:24:06
+🏢 Target Company: Google
+📄 Resume Summary: 0 years exp, 1 skills, 5 sections
+================================================================================
+
+🏆 OVERALL RESUME SCORE: 43/100
+[████████████░░░░░░░░░░░░░░░░░░] 43.0%
+📈 Assessment: Critical - Major overhaul needed
+------------------------------------------------------------
+
+🤖 ATS SIMULATION RESULTS
+========================================
+✅ Initial Screening: PASS
+📊 ATS Score: 34.9/100
+🎯 Recommendation: Very low likelihood of passing ATS screening
+
+📋 Detailed ATS Breakdown:
+  • Keywords:    6.7/100 [░░░░░░░░░░]
+  • Experience:  60.0/100 [██████░░░░]
+  • Education:   100.0/100 [██████████]
+  • Skills:      0.0/100 [░░░░░░░░░░]
+  • Format:      100.0/100 [██████████]
+
+🏢 Google-Specific Notes:
+  • Highlight algorithmic work
+  • Add research/publications if any
+  • Show innovation and impact metrics
+------------------------------------------------------------
+
+📑 SECTION-BY-SECTION ANALYSIS
+========================================
+
+✅ GENERAL ❌
+   Status: Present
+   Strength: Poor
+   Word Count: 14
+
+✅ SUMMARY ⚠️
+   Status: Present
+   Strength: Fair
+   Word Count: 24
+   💡 Suggestions:
+      • Expand summary to 3-4 sentences highlighting key strengths
+
+✅ EDUCATION ❌
+   Status: Present
+   Strength: Poor
+   Word Count: 14
+
+✅ EXPERIENCE ❌
+   Status: Present
+   Strength: Poor
+   Word Count: 43
+   💡 Suggestions:
+      • Add quantifiable achievements and metrics
+
+✅ SKILLS 🌟
+   Status: Present
+   Strength: Excellent
+   Word Count: 25
+   💡 Suggestions:
+      • Consider adding: distributed systems, algorithms, scalability, research, machine learning
+------------------------------------------------------------
+
+🔍 KEYWORD ANALYSIS
+========================================
+📈 Company Keyword Match: 0.0%
+[░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 0.0%
+
+❌ Missing Keywords (15):
+   distributed systems algorithms          ai                  
+   scalability         research            machine learning    
+   data structures     tensorflow          c++                 
+   java                go                  gcp                 
+   python              innovation          performance optimization
+------------------------------------------------------------
+
+💡 IMPROVEMENT RECOMMENDATIONS
+========================================
+
+🚨 HIGH PRIORITY
+
+1. Improve ATS Compatibility [ATS Optimization]
+   📝 Your resume needs optimization for ATS systems
+   🎯 Action Items:
+      • Add more relevant keywords
+      • Improve formatting and structure
+      • Include required skills
+
+2. Add Company-Specific Keywords [Keywords]
+   📝 Missing important keywords for Google
+   🎯 Action Items:
+      • Include: distributed systems, algorithms, ai, scalability, research
+
+🚨 MEDIUM PRIORITY
+
+1. Strengthen Weak Sections [Content]
+   📝 Some sections need improvement
+   🎯 Action Items:
+      • Improve general section
+      • Improve summary section
+      • Improve education section
+
+2. Highlight All Relevant Experience [Experience]
+   📝 Include internships, projects, and freelance work
+   🎯 Action Items:
+      • Add internship experience
+      • Include significant projects
+      • Mention freelance or volunteer work
+------------------------------------------------------------
+
+================================================================================
+🎯 RESUIN Analysis Complete
+💡 Implement the recommendations to improve your resume score
+🚀 Good luck with your job application!
+================================================================================
