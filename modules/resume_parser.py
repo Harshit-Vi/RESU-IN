@@ -1,260 +1,150 @@
-resume_parser.py
 """
 Resume Parser Module
-Handles parsing of PDF and DOCX resume files
+Extracts and processes resume data from PDF/DOCX files, with OCR fallback.
 """
 
-import os
 import re
+import os
 import csv
-import pytesseract
 from typing import Dict, List, Optional
-from pdf2image import convert_from_path
 
 try:
     import PyPDF2
-    from docx import Document
-except ImportError:
-    print("Required packages not installed. Please install:")
-    print("pip install PyPDF2 python-docx pytesseract pdf2image pillow")
-    raise ImportError('Required packages not installed. Please run: pip install PyPDF2 python-docx pytesseract pdf2image pillow')
+    import docx
+    from pdf2image import convert_from_path
+    import pytesseract
+    from PIL import Image
+except ImportError as e:
+    raise ImportError(
+        "Required packages not installed. Run: pip install PyPDF2 python-docx pytesseract pdf2image pillow"
+    ) from e
 
 
 class ResumeParser:
     def __init__(self):
-        # Main section keywords
-        self.sections = {
-            'contact': ['contact', 'personal', 'details'],
-            'summary': ['summary', 'objective', 'profile', 'about'],
-            'experience': ['experience', 'work', 'employment', 'career'],
-            'education': ['education', 'academic', 'qualification'],
-            'skills': ['skills', 'technical', 'competencies', 'expertise'],
-            'projects': ['projects', 'portfolio', 'work samples'],
-            'certifications': ['certifications', 'certificates', 'licenses'],
-            'achievements': ['achievements', 'awards', 'honors', 'accomplishments']
-        }
-
-        # Extra synonyms for non-standard headings
-        self.section_synonyms = {
-            'experience': ['career history', 'professional journey', 'employment history'],
-            'education': ['academics', 'scholastics', 'studies'],
-            'skills': ['competencies', 'abilities', 'strengths'],
-            'projects': ['case studies', 'assignments'],
-            'summary': ['highlights', 'overview', 'professional summary']
-        }
-
-        # Load skills from CSV (fallback to default if missing)
-        self.common_skills = self._load_skills_from_csv("data/skills.csv")
-
-    def _load_skills_from_csv(self, file_path: str) -> List[str]:
-        """Load skills from CSV file or fallback to default list"""
-        skills = []
-        try:
-            with open(file_path, newline='', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    if row.get('Skill'):
-                        skills.append(row['Skill'].strip())
-            print(f"Loaded {len(skills)} skills from {file_path}")
-        except FileNotFoundError:
-            print(f"Skills file not found at {file_path}. Using default list.")
-            skills = [
-                'python', 'java', 'javascript', 'c++', 'c#', 'sql', 'html', 'css',
-                'react', 'angular', 'vue', 'node.js', 'django', 'flask', 'spring',
-                'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'git', 'jenkins',
-                'tensorflow', 'pytorch', 'machine learning', 'data science',
-                'project management', 'agile', 'scrum', 'leadership', 'communication'
-            ]
-        return skills
+        self.skills_list = self._load_skills()
 
     def parse_resume(self, file_path: str) -> Optional[Dict]:
-        """Parse resume file and extract structured data"""
-        try:
-            if file_path.lower().endswith('.pdf'):
-                text = self._extract_pdf_text(file_path)
-            elif file_path.lower().endswith(('.docx', '.doc')):
-                text = self._extract_docx_text(file_path)
-            else:
-                raise ValueError("Unsupported file format")
-
-            if not text or len(text.strip()) < 100:  # Minimum length check
-                print("Error: Resume content not found. Please upload a valid resume.")
-                return None
-
-            # Must have at least one section or contact info
-            section_found = any(sec in text.lower() for sec in [
-                "experience", "education", "skills", "projects", "summary"
-            ])
-            contact_found = bool(re.search(
-                r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text
-            ))
-
-            if not section_found and not contact_found:
-                print("Error: Resume content not found. Please upload a valid resume.")
-                return None
-
-            return self._parse_resume_text(text)
-
-        except Exception as e:
-            print(f"Error parsing resume: {str(e)}")
+        """Main entry point: parse a resume file and return structured data."""
+        text = self._extract_text(file_path)
+        if not text:
+            print("❌ Unable to extract text from resume.")
             return None
 
+        resume_data = self._parse_resume_text(text)
+        return resume_data
+
+    def _extract_text(self, file_path: str) -> str:
+        """Extract raw text from PDF or DOCX, with OCR fallback."""
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == ".pdf":
+            text = self._extract_pdf_text(file_path)
+        elif ext in (".docx", ".doc"):
+            text = self._extract_docx_text(file_path)
+        else:
+            raise ValueError("Unsupported file format")
+
+        if not text.strip():
+            # Fallback to OCR if text extraction failed
+            text = self._ocr_pdf(file_path) if ext == ".pdf" else ""
+        return text
+
     def _extract_pdf_text(self, file_path: str) -> str:
-        """Extract text from PDF file, with OCR fallback"""
+        """Extract text from PDF using PyPDF2."""
         text = ""
-        try:
-            with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page in pdf_reader.pages:
-                    extracted = page.extract_text()
-                    if extracted:
-                        text += extracted
-            if not text.strip():
-                images = convert_from_path(file_path)
-                for img in images:
-                    text += pytesseract.image_to_string(img)
-        except Exception as e:
-            print(f"Error reading PDF: {str(e)}")
+        with open(file_path, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            for page in reader.pages:
+                text += page.extract_text() or ""
         return text
 
     def _extract_docx_text(self, file_path: str) -> str:
-        """Extract text from DOCX file"""
+        """Extract text from DOCX using python-docx."""
+        doc = docx.Document(file_path)
+        return "\n".join(para.text for para in doc.paragraphs)
+
+    def _ocr_pdf(self, file_path: str) -> str:
+        """Perform OCR on each page of the PDF."""
         text = ""
-        try:
-            doc = Document(file_path)
-            for paragraph in doc.paragraphs:
-                text += paragraph.text + "\n"
-        except Exception as e:
-            print(f"Error reading DOCX: {str(e)}")
+        images = convert_from_path(file_path)
+        for img in images:
+            text += pytesseract.image_to_string(img)
         return text
 
     def _parse_resume_text(self, text: str) -> Dict:
-        """Parse resume text into structured data"""
-        resume_data = {
-            'raw_text': text,
-            'sections': {},
-            'contact_info': self._extract_contact_info(text),
-            'skills': self._extract_skills(text),
-            'experience_years': self._calculate_experience_years(text),
-            'keywords': self._extract_keywords(text),
-            'education_level': self._extract_education_level(text)
+        """Parse extracted text into structured resume data."""
+        return {
+            "contact_info": self._extract_contact_info(text),
+            "skills": self._extract_skills(text),
+            "experience_years": self._estimate_experience(text),
+            "sections": self._detect_sections(text),
         }
-
-        # Split into sections
-        lines = text.split('\n')
-        current_section = 'general'
-        section_content = []
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            section_key = self._identify_section(line)
-            if section_key:
-                if section_content:
-                    resume_data['sections'][current_section] = '\n'.join(section_content)
-                current_section = section_key
-                section_content = []
-            else:
-                section_content.append(line)
-
-        if section_content:
-            resume_data['sections'][current_section] = '\n'.join(section_content)
-
-        return resume_data
-
-    def _identify_section(self, line: str) -> Optional[str]:
-        """Identify if a line is a section header (supports synonyms)"""
-        line_lower = line.lower().strip()
-
-        for section, keywords in self.sections.items():
-            for keyword in keywords:
-                if keyword in line_lower and len(line.split()) <= 5:
-                    return section
-
-        for section, synonyms in self.section_synonyms.items():
-            for syn in synonyms:
-                if syn in line_lower and len(line.split()) <= 6:
-                    return section
-
-        return None
 
     def _extract_contact_info(self, text: str) -> Dict:
-        """Extract contact info"""
-        contact_info = {}
-
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        emails = re.findall(email_pattern, text)
-        if emails:
-            contact_info['email'] = emails[0]
-
-        phone_pattern = r'(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}'
-        phones = re.findall(phone_pattern, text)
-        if phones:
-            contact_info['phone'] = ''.join(phones[0]) if isinstance(phones[0], tuple) else phones[0]
-
-        linkedin_pattern = r'linkedin\.com/in/[\w-]+'
-        linkedin = re.search(linkedin_pattern, text, re.IGNORECASE)
-        if linkedin:
-            contact_info['linkedin'] = linkedin.group()
-
-        return contact_info
+        """Extract phone, email, LinkedIn, etc."""
+        email = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
+        phone = re.findall(r"\+?\d[\d\s-]{7,}\d", text)
+        linkedin = re.findall(r"https?://(www\.)?linkedin\.com/[A-Za-z0-9\-/]+", text)
+        return {
+            "emails": email,
+            "phones": phone,
+            "linkedin": linkedin
+        }
 
     def _extract_skills(self, text: str) -> List[str]:
-        """Extract skills using loaded list"""
+        """Extract skills from resume text based on a predefined list."""
         found_skills = []
         text_lower = text.lower()
-        for skill in self.common_skills:
+        for skill in self.skills_list:
             if skill.lower() in text_lower:
                 found_skills.append(skill)
-        return sorted(set(found_skills), key=str.lower)
+        return list(set(found_skills))
 
-    def _calculate_experience_years(self, text: str) -> int:
-        """Calculate total experience years"""
-        exp_patterns = [
-            r'(\d+)\+?\s*years?\s*(of\s*)?experience',
-            r'experience\s*:?\s*(\d+)\+?\s*years?',
-            r'(\d+)\+?\s*year[s]?\s*(experience|exp)',
-        ]
-        years = 0
-        for pattern in exp_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            if matches:
-                for match in matches:
-                    try:
-                        year_val = int(match[0] if isinstance(match, tuple) else match)
-                        years = max(years, year_val)
-                    except (ValueError, IndexError):
-                        continue
-        return years
+    def _estimate_experience(self, text: str) -> int:
+        """Estimate years of experience from date ranges."""
+        years = re.findall(r"(20\d{2}|19\d{2})", text)
+        if years:
+            years = sorted(set(map(int, years)))
+            return max(0, max(years) - min(years))
+        return 0
 
-    def _extract_keywords(self, text: str) -> List[str]:
-        """Extract top keywords"""
-        stop_words = {
-            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
-            'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be',
-            'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would'
+    def _detect_sections(self, text: str) -> Dict[str, str]:
+        """Detect common resume sections."""
+        sections = {
+            "experience": "",
+            "education": "",
+            "skills": "",
+            "projects": "",
+            "certifications": "",
         }
-        words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
-        keywords = [word for word in words if word not in stop_words]
-        from collections import Counter
-        word_freq = Counter(keywords)
-        return [word for word, count in word_freq.most_common(50)]
+        # This is a naive section detection — can be improved with NLP
+        lines = text.splitlines()
+        current_section = None
+        for line in lines:
+            line_clean = line.strip().lower()
+            for section in sections.keys():
+                if section in line_clean:
+                    current_section = section
+                    break
+            else:
+                if current_section:
+                    sections[current_section] += line + "\n"
+        return sections
 
-    def _extract_education_level(self, text: str) -> str:
-        """Extract highest education"""
-        education_levels = {
-            'phd': ['phd', 'ph.d', 'doctorate', 'doctoral'],
-            'masters': ['masters', "master's", 'm.s', 'mba', 'ma', 'ms'],
-            'bachelors': ['bachelors', "bachelor's", 'b.s', 'ba', 'bs', 'b.tech', 'be'],
-            'associate': ['associate', 'diploma'],
-            'high_school': ['high school', 'secondary', '12th', 'intermediate']
-        }
-        text_lower = text.lower()
-        for level, keywords in education_levels.items():
-            for keyword in keywords:
-                if keyword in text_lower:
-                    return level
-        return 'unknown'
+    def _load_skills(self) -> List[str]:
+        """Load skills from CSV file or use default list."""
+        skills_file = os.path.join(os.path.dirname(__file__), "data", "skills.csv")
+        if os.path.exists(skills_file):
+            with open(skills_file, newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                return [row[0] for row in reader if row]
+        else:
+            return ["Python", "Java", "C++", "SQL", "JavaScript", "HTML", "CSS"]
 
+
+if __name__ == "__main__":
+    parser = ResumeParser()
+    test_path = input("Enter path to resume: ").strip()
+    result = parser.parse_resume(test_path)
+    if result:
+        print(result)
