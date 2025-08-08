@@ -31,6 +31,10 @@ class CompanyATS:
     def __post_init__(self):
         if self.required_keywords is None:
             self.required_keywords = set(self.preferred_keywords)
+    
+    def __init__(self):
+        self.ats_profiles = self._initialize_ats_profiles()
+        self.synonym_map = self._build_synonym_map()
 
     def get_available_companies(self) -> List[str]:
         """Get list of available companies"""
