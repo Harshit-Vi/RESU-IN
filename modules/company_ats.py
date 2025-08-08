@@ -25,13 +25,13 @@ class ATSProfile:
     common_filters: List[str]
     required_keywords: Set[str] = None  # NEW FIELD
 
-class CompanyATS:
-    """Main ATS simulation class with rule-based and smart scoring modes"""
-
     def __post_init__(self):
         if self.required_keywords is None:
             self.required_keywords = set(self.preferred_keywords)
-    
+
+class CompanyATS:
+    """Main ATS simulation class with rule-based and smart scoring modes"""
+
     def __init__(self):
         self.ats_profiles = self._initialize_ats_profiles()
         self.synonym_map = self._build_synonym_map()
@@ -422,6 +422,20 @@ class CompanyATS:
     def _initialize_ats_profiles(self) -> Dict[str, ATSProfile]:
         """Initialize ATS profiles for different companies"""
         return {
+             "Generic": ATSProfile(
+            company="Generic",
+            keyword_weight=0.25,
+            experience_weight=0.25,
+            education_weight=0.15,
+            skills_weight=0.2,
+            format_weight=0.15,
+            preferred_keywords={"resume", "experience", "skills"},
+            required_skills={"communication", "teamwork"},
+            experience_requirements={"entry": 0, "mid": 3, "senior": 5},
+            education_preferences=["bachelor", "master", "phd"],
+            scoring_strictness=0.5,
+            common_filters=["pdf", "docx"]
+        ),
             'Amazon': ATSProfile(
                 company='Amazon',
                 keyword_weight=0.35, experience_weight=0.25,
