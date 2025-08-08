@@ -5,7 +5,9 @@ Handles parsing of PDF and DOCX resume files
 
 import os
 import re
+import pytesseract
 from typing import Dict, List, Optional
+from pdf2image import convert_from_path
 try:
     import PyPDF2
     from docx import Document
@@ -46,17 +48,25 @@ class ResumeParser:
             print(f"Error parsing resume: {str(e)}")
             return None
     
-    def _extract_pdf_text(self, file_path: str) -> str:
-        """Extract text from PDF file"""
-        text = ""
-        try:
-            with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page in pdf_reader.pages:
-                    text += page.extract_text()
-        except Exception as e:
-            print(f"Error reading PDF: {str(e)}")
-        return text
+    
+def _extract_pdf_text(self, file_path: str) -> str:
+    """Extract text from PDF file, with OCR fallback"""
+    text = ""
+    try:
+        with open(file_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted
+                else:
+                    # OCR fallback
+                    images = convert_from_path(file_path)
+                    for img in images:
+                        text += pytesseract.image_to_string(img)
+    except Exception as e:
+        print(f"Error reading PDF: {str(e)}")
+    return text
     
     def _extract_docx_text(self, file_path: str) -> str:
         """Extract text from DOCX file"""
